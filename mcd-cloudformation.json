@@ -1,0 +1,82 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Build some example alerts for Kinesis and Lambda for Monte Carlo Data homework.",
+    "Parameters": {
+        "AlarmEMail": {
+            "Description": "PagerDuty service address",
+            "Type": "String",
+            "AllowedPattern": "([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)",
+            "ConstraintDescription": "must be a valid email address."
+        }
+    },
+    "Resources": {
+        "AgentDataStream": {
+            "Type" : "AWS::Kinesis::Stream",
+            "Properties" : {
+                "RetentionPeriodHours" : 24,
+                "ShardCount" : 20
+              }
+        },
+        "AlarmTopic": {
+            "Type": "AWS::SNS::Topic",
+            "Properties": {
+                "Subscription": [
+                    {
+                        "Endpoint": {
+                            "Ref": "AlarmEMail"
+                        },
+                        "Protocol": "email"
+                    }
+                ]
+            }
+        },
+        "QueueDepthAlarm": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Alarm for Kinesis, if any shard's iterator age grows > 10120000 ms (2 minutes)",
+                "Namespace": "AWS/Kinesis",
+                "MetricName": "GetRecords.IteratorAgeMilliseconds",
+                "Dimensions": [
+                    {
+                        "Name": "StreamName",
+                        "Value": {
+                            "Ref": "AgentDataStream"
+                        }
+                    }
+                ],
+                "Statistic": "Maximum",
+                "Period": "300",
+                "EvaluationPeriods": "1",
+                "Threshold": "10120000",
+                "ComparisonOperator": "GreaterThanThreshold",
+                "AlarmActions": [
+                    {
+                        "Ref": "AlarmTopic"
+                    }
+                ],
+                "InsufficientDataActions": [
+                    {
+                        "Ref": "AlarmTopic"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "StreamURL": {
+            "Description": "URL of newly created Kinesis stream",
+            "Value": {
+                "Ref": "AgentDataStream"
+            }
+        },
+        "StreamARN": {
+            "Description": "ARN of newly created Kinesis stream",
+            "Value": {
+                "Fn::GetAtt": [
+                    "AgentDataStream",
+                    "Arn"
+                ]
+            }
+        }
+    }
+}
